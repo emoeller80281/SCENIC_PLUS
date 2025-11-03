@@ -1,15 +1,9 @@
 #!/bin/bash -l
-
-# ------------ CHANGE THESE VARIABLES -----------
-CONDA_ENV_NAME="test_scenicplus"
-
-SAMPLE_NAME="filtered_L2_E7.5_rep1"
-CELL_TYPE="mESC"
-SPECIES="mouse"
-RNA_FILE_NAME="multiomic_data_filtered_L2_E7.5_rep1_RNA.csv"
-ATAC_FILE_NAME="multiomic_data_filtered_L2_E7.5_rep1_ATAC.csv"
-INPUT_DIR="/gpfs/Labs/Uzun/DATA/PROJECTS/2024.GRN_BENCHMARKING.MOELLER/LINGER/LINGER_MESC_SC_DATA/FULL_MESC_SAMPLES/${SAMPLE_NAME}"
-SCRIPT_DIR="/gpfs/Labs/Uzun/SCRIPTS/PROJECTS/2024.GRN_BENCHMARKING.MOELLER/TEST_SCENIC_PLUS"
+#SBATCH --job-name="SCENIC+_${CELL_TYPE}_${SAMPLE_NAME}"
+#SBATCH -p compute
+#SBATCH --nodes=1
+#SBATCH -c 3
+#SBATCH --mem=64G
 
 # DECIDE WHICH STEPS TO RUN
 STEP_01_RNA_PREPROCESSING=true
@@ -25,17 +19,8 @@ USE_PRECOMPUTED_CISTARGET_DB=true
 STEP_06_RUN_SNAKEMAKE_PIPELINE=true
 
 STEP_07_FORMAT_INFERRED_GRN=true
-# -------------------------------------------------
 
-export SAMPLE_NAME CELL_TYPE  
-###############################################################################
-# SLURM DIRECTIVES
-###############################################################################
-#SBATCH --job-name="SCENIC+_${CELL_TYPE}_${SAMPLE_NAME}"
-#SBATCH -p compute
-#SBATCH --nodes=1
-#SBATCH --cpus-per-task=5
-#SBATCH --mem-per-cpu=64G
+CONDA_ENV_NAME="scenicplus"
 
 ###############################################################################
 # ENVIRONMENT SETUP
@@ -240,7 +225,7 @@ add_pycistopic_to_path(){
 check_or_create_dir() {
     local dir_path="$1"
     if [ ! -d "$dir_path" ]; then
-        echo "Directory '$dir_path' does not exist. Creating it now..."
+        echo "    - Directory '$dir_path' does not exist. Creating it now..."
         mkdir -p "$dir_path"
     fi
 }
@@ -249,7 +234,7 @@ check_or_create_dir() {
 check_file_exists() {
     local file_path="$1"
     if [ ! -f "$file_path" ]; then
-        echo "Error: File '$file_path' does not exist!"
+        echo "    - Error: File '$file_path' does not exist!"
         exit 1
     fi
 }
@@ -258,7 +243,7 @@ check_file_exists() {
 check_dir_exists() {
     local dir_path="$1"
     if [ ! -d "$dir_path" ]; then
-        echo "Error: Directory '$dir_path' does not exist!"
+        echo "    - Error: Directory '$dir_path' does not exist!"
         exit 1
     fi
 }
@@ -299,7 +284,7 @@ generate_config() {
 }
 
 check_clusterbuster(){
-    echo "Checking to see if Cluster-Buster is in the PATH"
+    echo "[INFO] Checking to see if Cluster-Buster is in the PATH"
     # Check if 'cbust' is in the PATH
     if ! command -v cbust &> /dev/null; then
         echo "    'cbust' not found in PATH. Setting it up..."
@@ -328,7 +313,7 @@ check_clusterbuster(){
 }
 
 check_aertslab_motif_collection(){
-    echo "Checking if the Aertslab motif collection is downloaded"
+    echo "[INFO] Checking if the Aertslab motif collection is downloaded"
     # Check for the motif collection directory and file or download
     MOTIF_DIR="${SCRIPT_DIR}/aertslab_motif_colleciton"
     MOTIF_ZIP="${MOTIF_DIR}/v10nr_clust_public.zip"
@@ -355,7 +340,7 @@ check_aertslab_motif_collection(){
 }
 
 check_organism_genome_files(){
-    echo "Checking to see if the organism genome directory contains the correct files"
+    echo "[INFO] Checking to see if the organism genome directory contains the correct files"
     if [ ! -d "${ORGANISM_DIR}" ]; then
         mkdir -p "$ORGANISM_DIR"
     fi
@@ -459,7 +444,8 @@ install_scenic_plus
 install_pycistopic
 add_pycistopic_to_path
 
-echo "Checking for all required directories and files"
+echo ""
+echo "[INFO] Checking required directories and files"
 # Check required directories
 check_dir_exists "$CISTARGET_SCRIPT_DIR"
 check_dir_exists "$SCRIPT_DIR"
@@ -469,11 +455,12 @@ check_file_exists "$INPUT_DIR/$ATAC_FILE_NAME"
 check_file_exists "$INPUT_DIR/$RNA_FILE_NAME"
 
 # Check to see if SCENIC+ generated directories exist or create them
-
 check_or_create_dir "$OUTPUT_DIR"
 check_or_create_dir "$TEMP_DIR"
 check_or_create_dir "$QC_DIR"
+check_or_create_dir "${SCRIPT_DIR}/formatted_inferred_GRNs"
 check_or_create_dir "${SCRIPT_DIR}/scplus_pipeline/Snakemake/config"
+echo "    - Done!"
 
 # Generate the config file for the cell type and sample
 generate_config
