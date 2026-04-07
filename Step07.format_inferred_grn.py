@@ -53,7 +53,7 @@ def main():
 
     subset_inferred_grn = pd.DataFrame(inferred_grn_data[["Source", "Target", "Score"]])
 
-    output_file_name = f"{output_dir}/scenic_plus_inferred_grn_{cell_type}_{sample_name}.tsv"
+    output_file_name = f"{output_dir}/scenic_plus_{cell_type}_{sample_name}.tsv"
 
     subset_inferred_grn.to_csv(output_file_name, sep="\t", header=True, index=False)
 

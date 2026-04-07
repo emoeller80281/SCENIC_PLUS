@@ -2,8 +2,8 @@
 #SBATCH --job-name="SCENIC+_${CELL_TYPE}_${SAMPLE_NAME}"
 #SBATCH -p compute
 #SBATCH --nodes=1
-#SBATCH -c 3
-#SBATCH --mem=64G
+#SBATCH -c 12
+#SBATCH --mem=128G
 
 # DECIDE WHICH STEPS TO RUN
 STEP_01_RNA_PREPROCESSING=false
@@ -675,7 +675,7 @@ if [ "$STEP_07_FORMAT_INFERRED_GRN" = true ]; then
                 --inferred_grn_file "${OUTPUT_DIR}/scplusmdata.h5mu" \
                 --cell_type "$CELL_TYPE" \
                 --sample_name "$SAMPLE_NAME"
-        echo "    DONE! Formatted GRN saved as 'scenic_plus_inferred_grn_${CELL_TYPE}.tsv'"
+        echo "    DONE! Formatted GRN saved as 'scenic_plus_${CELL_TYPE}_${SAMPLE_NAME}.tsv'"
     else
         echo "    ERROR! formatting inferred GRN 'scplusmdata.h5mu': File not found in the output directory"
     fi
