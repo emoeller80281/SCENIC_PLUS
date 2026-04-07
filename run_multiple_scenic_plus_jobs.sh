@@ -21,7 +21,7 @@ submit_run_scenic_plus_job() {
     local ATAC_FILE_NAME=$6
 
     # Ensure the log directory exists
-    mkdir -p "LOGS/${CELL_TYPE}_logs/${SAMPLE_NAME}_logs"
+    mkdir -p "${SCRIPT_DIR}/LOGS/${CELL_TYPE}_logs/${SAMPLE_NAME}_logs"
 
     # Submit the job
     sbatch \
@@ -32,6 +32,41 @@ submit_run_scenic_plus_job() {
         --job-name="SCENIC+_${CELL_TYPE}_${SAMPLE_NAME}" \
         "${SCRIPT_DIR}/run_scenic_plus.sh"
         "${SCRIPT_DIR}/run_scenic_plus.sh"
+}
+
+run_ips() {
+    local CELL_TYPE="iPS"
+    local SAMPLE_NAMES=(
+        # "muon_buffer_1"
+        "muon_buffer_2"
+        "muon_buffer_3"
+        # "muon_buffer_4"
+        )
+    local SPECIES="human"
+
+    # Submit each SAMPLE_NAME as a separate job
+    for SAMPLE_NAME in "${SAMPLE_NAMES[@]}"; do
+
+        local INPUT_DIR="/gpfs/Labs/Uzun/DATA/PROJECTS/2024.GRN_BENCHMARKING.MOELLER/LINGER/LINGER_MACROPHAGE/muon_${SAMPLE_NAME}"
+        # Check how many jobs are currently queued/running
+        while [ "$(squeue -u $USER | grep SCENIC+ | wc -l)" -ge "$MAX_JOBS_IN_QUEUE" ]; do
+            echo "[INFO] Maximum jobs ($MAX_JOBS_IN_QUEUE) in queue. Waiting 60 seconds..."
+            sleep 60
+        done
+
+        local RNA_FILE_NAME="${SAMPLE_NAME}_RNA_iPS_cell_L2.csv"
+        local ATAC_FILE_NAME="${SAMPLE_NAME}_ATAC_iPS_cell_L2.csv"
+
+        # Submit the job for each sample
+        submit_run_scenic_plus_job \
+            "$SAMPLE_NAME" \
+            "$CELL_TYPE" \
+            "$SPECIES" \
+            "$INPUT_DIR" \
+            "$INPUT_DIR" \
+            "$RNA_FILE_NAME" \
+            "$ATAC_FILE_NAME"
+    done
 }
 
 run_macrophage() {
