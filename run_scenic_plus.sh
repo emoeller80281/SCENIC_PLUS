@@ -32,7 +32,7 @@ trap "echo 'An error occurred. Exiting...'; exit 1;" ERR
 # INPUT FILES & DIRECTORIES
 ###############################################################################
 
-LOG_DIR="${SCRIPT_DIR}/LOGS/${CELL_TYPE}_logs/${SAMPLE_NAME}_logs/"
+
 OUTPUT_DIR="${SCRIPT_DIR}/output/${CELL_TYPE}_${SAMPLE_NAME}_outs"
 REGION_BED="${OUTPUT_DIR}/consensus_peak_calling/consensus_regions.bed"
 CISTARGET_SCRIPT_DIR="${SCRIPT_DIR}/create_cisTarget_databases"
@@ -79,7 +79,6 @@ echo "    Genome FASTA File: $GENOME_FASTA"
 echo "    Cell Type: $CELL_TYPE"
 echo "    Sample: $SAMPLE_NAME"
 echo "    Species: $SPECIES"
-echo ""
 
 ###############################################################################
 # FUNCTION DEFINITIONS
@@ -102,7 +101,6 @@ check_if_running() {
     else
         echo "    - No jobs with the same name running, continuing"
     fi
-    echo ""
 }
 
 determine_num_cpus() {
@@ -162,51 +160,89 @@ activate_conda_env() {
         echo ""
         echo "[ERROR] Conda environment '$CONDA_ENV_NAME' does not exist."
         echo "   - Attempting to create $CONDA_ENV_NAME environment..."
-        conda create --name $CONDA_ENV_NAME python=3.11 -y
-        exit 1
+        # redirect both stdout and stderr into create_env.err
+        {
+        conda create --name "$CONDA_ENV_NAME" python=3.11.8 -y 
+        conda activate "$CONDA_ENV_NAME"
+        pip install "pip<24.1" 
+        pip install ${SCRIPT_DIR}
+        } > "${LOG_DIR}/create_conda_env.out" 2> "${LOG_DIR}/create_conda_env.out"
+        if [[ $? -ne 0 ]]; then
+            echo "[ERROR] Failed to create Conda environment, see ${LOG_DIR}/create_env.err for details."
+            exit 1
+        fi
     fi
 
     conda activate "$CONDA_ENV_NAME" || { echo "Error: Failed to activate Conda environment '$CONDA_ENV_NAME'."; exit 1; }
     echo "   - Successfully activated Conda environment: $CONDA_ENV_NAME"
     echo "   - Python executable: $(which python)"
-    echo ""
 }
 
 install_scenic_plus() {
+    echo ""
     echo "[INFO] Checking that scenicplus is installed"
-    local repo_dir="${SCRIPT_DIR}/scenicplus"
+    local repo_dir="${SCRIPT_DIR}/src/scenicplus"
+    local logf="${LOG_DIR}/install_scenic_plus.log"
 
-    # only clone & install if it doesn’t already exist
-    if [[ ! -d "$repo_dir" ]]; then
-        echo "    - scenicplus directory not found, installing..."
-        # clone directly into the target directory
-        git clone https://github.com/Luminarada80/scenicplus_src.git "$repo_dir"
+    python3 -c "import scenicplus" 2>/dev/null
+    local is_installed=$?
 
-        # install in editable mode so you can pick up future changes
-        pip install -e "$repo_dir"
-        echo "        Done!"
+    if [[ $is_installed -ne 0 || ! -d "$repo_dir" ]]; then
+        echo "    - scenicplus not found in Python or directory missing, installing..."
+        mkdir -p "$(dirname "$logf")"
+
+        {
+            echo "---- Cloning scenicplus ----"
+            git clone https://github.com/Luminarada80/scenicplus_src.git "$repo_dir"
+            echo "---- Installing scenicplus ----"
+            pip install "${SCRIPT_DIR}"
+        } > "$logf" 2>&1
+
+        if [[ $? -ne 0 ]]; then
+            echo "[ERROR] scenicplus install failed, see $logf"
+            exit 1
+        else
+            echo "    - scenicplus installed; logs in $logf"
+        fi
     else
-        echo "    - scenicplus directory exists"
+        echo "    - scenicplus is already installed and directory exists"
     fi
 }
 
+
 install_pycistopic() {
+    echo ""
     echo "[INFO] Checking that pycisTopic is installed"
     local repo_dir="${SCRIPT_DIR}/pycisTopic"
+    local logf="${LOG_DIR}/install_pycistopic.log"
 
-    # only clone & install if it doesn’t already exist
     if [[ ! -d "$repo_dir" ]]; then
         echo "    - pycisTopic directory not found, installing..."
-        # clone directly into the target directory
-        git clone https://github.com/aertslab/pycisTopic.git "$repo_dir"
-        pip install -e "$repo_dir"
-        echo "        Done!"
+        # make sure log directory exists
+        mkdir -p "$(dirname "$logf")"
+
+        # run both clone and install, capturing all output
+        {
+            echo "---- Cloning pycisTopic ----"
+            git clone https://github.com/aertslab/pycisTopic.git "$repo_dir"
+            echo "---- Installing pycisTopic ----"
+            pip install -e "$repo_dir"
+        } > "$logf" 2>&1
+
+        if [[ $? -ne 0 ]]; then
+            echo "[ERROR] pycisTopic install failed, see $logf"
+            exit 1
+        else
+            echo "    - pycisTopic installed; log in $logf"
+        fi
     else
         echo "    - pycisTopic directory exists"
     fi
 }
 
 add_pycistopic_to_path(){
+    echo ""
+    echo "[INFO] Adding pycisTopic to PATH"
     # Add the local pycisTopic to the python path so it is recognized as a module
     if [ -z "${PYTHONPATH+x}" ]; then
         export PYTHONPATH="${SCRIPT_DIR}/pycisTopic/src"
@@ -221,10 +257,48 @@ add_pycistopic_to_path(){
     fi
 }
 
+ensure_python_pkg() {
+    local pkg="$1"
+    if ! python3 - <<EOF 2>/dev/null
+try:
+    __import__("$pkg")
+except ImportError:
+    raise
+EOF
+    then
+        echo "    - Python package '$pkg' not found; attempting to install…"
+        # try conda first
+        if conda install -y "$pkg" >> "$LOG_DIR/python_deps.log" 2>&1; then
+            echo "        - Installed '$pkg' via conda"
+        else
+            echo "        - [WARN] Conda install failed for '$pkg'; falling back to pip"
+            if pip install "$pkg" >> "$LOG_DIR/python_deps.log" 2>&1 ; then
+                echo "            - Installed '$pkg' via pip"
+            else
+                echo ""
+                echo "[ERROR] Could not install python package '$pkg'"
+                exit 1
+            fi
+        fi
+    else
+        echo "    - Python package '$pkg' is already installed"
+    fi
+}
+
+check_python_deps() {
+    echo ""
+    echo "[INFO] Checking python package requirements"
+    local pkgs=(ruamel.yaml requests numpy pandas scanpy mudata)
+    for p in "${pkgs[@]}"; do
+        ensure_python_pkg "$p"
+    done
+} 
+
 # Function to check if a directory exists, and create it if it doesn't
 check_or_create_dir() {
     local dir_path="$1"
     if [ ! -d "$dir_path" ]; then
+        echo "    - Directory '$dir_path' does not exist. Creating it now..."
         echo "    - Directory '$dir_path' does not exist. Creating it now..."
         mkdir -p "$dir_path"
     fi
@@ -235,6 +309,7 @@ check_file_exists() {
     local file_path="$1"
     if [ ! -f "$file_path" ]; then
         echo "    - Error: File '$file_path' does not exist!"
+        echo "    - Error: File '$file_path' does not exist!"
         exit 1
     fi
 }
@@ -243,6 +318,7 @@ check_file_exists() {
 check_dir_exists() {
     local dir_path="$1"
     if [ ! -d "$dir_path" ]; then
+        echo "    - Error: Directory '$dir_path' does not exist!"
         echo "    - Error: Directory '$dir_path' does not exist!"
         exit 1
     fi
@@ -285,18 +361,19 @@ generate_config() {
 
 check_clusterbuster(){
     echo "[INFO] Checking to see if Cluster-Buster is in the PATH"
+    echo "[INFO] Checking to see if Cluster-Buster is in the PATH"
     # Check if 'cbust' is in the PATH
     if ! command -v cbust &> /dev/null; then
-        echo "    'cbust' not found in PATH. Setting it up..."
+        echo "    - 'cbust' not found in PATH. Setting it up..."
 
         # Download the cbust if its not in the script path
         if [ ! -f "${SCRIPT_DIR}/cbust" ]; then
             echo "    cbust not downloaded, downloading..."
             # Download cluster-buster (cbust)
-            wget https://resources.aertslab.org/cistarget/programs/cbust -O "${SCRIPT_DIR}/cbust"
+            wget -q https://resources.aertslab.org/cistarget/programs/cbust -O "${SCRIPT_DIR}/cbust"
 
         else
-            echo "    cbust file found, adding to PATH"
+            echo "        - 'cbust' file found, adding to PATH..."
         fi
 
         # Make it executable
@@ -304,10 +381,10 @@ check_clusterbuster(){
 
         # Add it to the PATH
         export PATH="${SCRIPT_DIR}:$PATH"
-        echo "    'cbust' has been added to PATH."
+        echo "    - 'cbust' has been added to PATH."
 
     else
-        echo "    'cbust' is already in PATH."
+        echo "    - 'cbust' is already in PATH."
     fi
     echo ""
 }
@@ -319,27 +396,35 @@ check_aertslab_motif_collection(){
     MOTIF_ZIP="${MOTIF_DIR}/v10nr_clust_public.zip"
     MOTIF_URL="https://resources.aertslab.org/cistarget/motif_collections/v10nr_clust_public/v10nr_clust_public.zip"
 
-    # Check if the motif collection already exists
-    if [ ! -d "${MOTIF_DIR}/v10nr_clust_public" ]; then
-        echo "    Motif collection not found. Downloading and extracting it now..."
+        if [[ ! -d "${MOTIF_DIR}/v10nr_clust_public" ]]; then
+            echo "    - Not found, creating ${MOTIF_DIR}"
+            mkdir -p "${MOTIF_DIR}"
 
-        # Create the motif collection directory if it doesn't exist
-        mkdir -p "${MOTIF_DIR}"
+            echo "    - Downloading to ${MOTIF_ZIP}"
+            wget -q -O "${MOTIF_ZIP}" "${MOTIF_URL}"
 
-        # Download the motif collection zip file
-        wget -O "${MOTIF_ZIP}" "${MOTIF_URL}"
+            echo "    - Extracting archive"
+            unzip -q "${MOTIF_ZIP}" -d "${MOTIF_DIR}"
 
-        # Extract the zip file
-        unzip -q "${MOTIF_ZIP}" -d "${MOTIF_DIR}"
+            echo "[INFO] Downloaded & extracted to ${MOTIF_DIR}/v10nr_clust_public"
+        else
+            echo "[INFO] Motif collection already at ${MOTIF_DIR}/v10nr_clust_public"
+        fi
 
-        echo "    Motif collection downloaded and extracted to ${MOTIF_DIR}/v10nr_clust_public."
+        echo ""  # blank line for readability
+    } >"$logf" 2>&1
+
+    if [[ $? -ne 0 ]]; then
+        echo "[ERROR] check_aertslab_motif_collection failed; see $logf"
+        exit 1
     else
-        echo "    Motif collection exists at ${MOTIF_DIR}/v10nr_clust_public."
+        echo "[INFO] check_aertslab_motif_collection succeeded; details in $logf"
     fi
-    echo ""
 }
 
+
 check_organism_genome_files(){
+    echo "[INFO] Checking to see if the organism genome directory contains the correct files"
     echo "[INFO] Checking to see if the organism genome directory contains the correct files"
     if [ ! -d "${ORGANISM_DIR}" ]; then
         mkdir -p "$ORGANISM_DIR"
@@ -429,6 +514,7 @@ check_organism_genome_files(){
     fi
 }
 
+
 ###############################################################################
 # CHECK PATHS AND DEPENDENCIES
 ###############################################################################
@@ -440,10 +526,14 @@ cd "${SCRIPT_DIR}"
 check_if_running
 determine_num_cpus
 activate_conda_env
+
 install_scenic_plus
 install_pycistopic
 add_pycistopic_to_path
+check_python_deps 
 
+echo ""
+echo "[INFO] Checking required directories and files"
 echo ""
 echo "[INFO] Checking required directories and files"
 # Check required directories
@@ -459,7 +549,9 @@ check_or_create_dir "$OUTPUT_DIR"
 check_or_create_dir "$TEMP_DIR"
 check_or_create_dir "$QC_DIR"
 check_or_create_dir "${SCRIPT_DIR}/formatted_inferred_GRNs"
+check_or_create_dir "${SCRIPT_DIR}/formatted_inferred_GRNs"
 check_or_create_dir "${SCRIPT_DIR}/scplus_pipeline/Snakemake/config"
+echo "    - Done!"
 echo "    - Done!"
 
 # Generate the config file for the cell type and sample
@@ -475,8 +567,8 @@ check_organism_genome_files
 check_file_exists "$BLACKLIST"
 check_file_exists "$GENOME_FASTA"
 
-
-echo "Checks complete, starting pipeline"
+echo ""
+echo "===== CHECKS COMPLETE ====="
 
 ###############################################################################
 # STEP 1: RNA PREPROCESSING

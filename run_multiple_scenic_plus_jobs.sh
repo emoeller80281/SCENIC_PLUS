@@ -16,6 +16,9 @@ submit_run_scenic_plus_job() {
     local INPUT_DIR=$4
     local RNA_FILE_NAME=$5
     local ATAC_FILE_NAME=$6
+    local INPUT_DIR=$4
+    local RNA_FILE_NAME=$5
+    local ATAC_FILE_NAME=$6
 
     # Ensure the log directory exists
     mkdir -p "LOGS/${CELL_TYPE}_logs/${SAMPLE_NAME}_logs"
@@ -23,9 +26,11 @@ submit_run_scenic_plus_job() {
     # Submit the job
     sbatch \
         --export=ALL,SAMPLE_NAME="$SAMPLE_NAME",CELL_TYPE="$CELL_TYPE",SPECIES="$SPECIES",INPUT_DIR="$INPUT_DIR",RNA_FILE_NAME="$RNA_FILE_NAME",ATAC_FILE_NAME="$ATAC_FILE_NAME",SCRIPT_DIR="$SCRIPT_DIR" \
+        --export=ALL,SAMPLE_NAME="$SAMPLE_NAME",CELL_TYPE="$CELL_TYPE",SPECIES="$SPECIES",INPUT_DIR="$INPUT_DIR",RNA_FILE_NAME="$RNA_FILE_NAME",ATAC_FILE_NAME="$ATAC_FILE_NAME",SCRIPT_DIR="$SCRIPT_DIR" \
         --output="LOGS/${CELL_TYPE}_logs/${SAMPLE_NAME}_logs/scenic_plus_${CELL_TYPE}_${SAMPLE_NAME}.out" \
         --error="LOGS/${CELL_TYPE}_logs/${SAMPLE_NAME}_logs/scenic_plus_${CELL_TYPE}_${SAMPLE_NAME}.err" \
         --job-name="SCENIC+_${CELL_TYPE}_${SAMPLE_NAME}" \
+        "${SCRIPT_DIR}/run_scenic_plus.sh"
         "${SCRIPT_DIR}/run_scenic_plus.sh"
 }
 
@@ -39,6 +44,7 @@ run_macrophage() {
         )
     local SPECIES="human"
 
+    # Submit each SAMPLE_NAME as a separate job
     for SAMPLE_NAME in "${SAMPLE_NAMES[@]}"; do
 
         local INPUT_DIR="/gpfs/Labs/Uzun/DATA/PROJECTS/2024.GRN_BENCHMARKING.MOELLER/LINGER/LINGER_MACROPHAGE/muon_${SAMPLE_NAME}"
@@ -57,6 +63,7 @@ run_macrophage() {
             "$CELL_TYPE" \
             "$SPECIES" \
             "$INPUT_DIR" \
+            "$INPUT_DIR" \
             "$RNA_FILE_NAME" \
             "$ATAC_FILE_NAME"
     done
@@ -64,6 +71,7 @@ run_macrophage() {
 
 run_mESC(){
     local CELL_TYPE="mESC"
+
 
     local SAMPLE_NAMES=(
         # "muon_E7.5_rep1"
@@ -93,6 +101,7 @@ run_mESC(){
             "$SAMPLE_NAME" \
             "$CELL_TYPE" \
             "$SPECIES" \
+            "$INPUT_DIR" \
             "$INPUT_DIR" \
             "$RNA_FILE_NAME" \
             "$ATAC_FILE_NAME"
@@ -165,6 +174,7 @@ run_iPSC(){
             "$SAMPLE_NAME" \
             "$CELL_TYPE" \
             "$SPECIES" \
+            "$INPUT_DIR" \
             "$INPUT_DIR" \
             "$RNA_FILE_NAME" \
             "$ATAC_FILE_NAME"
