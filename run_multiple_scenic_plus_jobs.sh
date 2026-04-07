@@ -18,15 +18,46 @@ submit_run_scenic_plus_job() {
     local ATAC_FILE_NAME=$6
 
     # Ensure the log directory exists
-    mkdir -p "LOGS/${CELL_TYPE}_logs/${SAMPLE_NAME}_logs"
+    mkdir -p "${SCRIPT_DIR}/LOGS/${CELL_TYPE}_logs/${SAMPLE_NAME}_logs"
 
     # Submit the job
     sbatch \
         --export=ALL,SAMPLE_NAME="$SAMPLE_NAME",CELL_TYPE="$CELL_TYPE",SPECIES="$SPECIES",INPUT_DIR="$INPUT_DIR",RNA_FILE_NAME="$RNA_FILE_NAME",ATAC_FILE_NAME="$ATAC_FILE_NAME",SCRIPT_DIR="$SCRIPT_DIR" \
-        --output="LOGS/${CELL_TYPE}_logs/${SAMPLE_NAME}_logs/scenic_plus_${CELL_TYPE}_${SAMPLE_NAME}.out" \
-        --error="LOGS/${CELL_TYPE}_logs/${SAMPLE_NAME}_logs/scenic_plus_${CELL_TYPE}_${SAMPLE_NAME}.err" \
+        --output="${SCRIPT_DIR}/LOGS/${CELL_TYPE}_logs/${SAMPLE_NAME}_logs/scenic_plus_${CELL_TYPE}_${SAMPLE_NAME}.out" \
+        --error="${SCRIPT_DIR}/LOGS/${CELL_TYPE}_logs/${SAMPLE_NAME}_logs/scenic_plus_${CELL_TYPE}_${SAMPLE_NAME}.err" \
         --job-name="SCENIC+_${CELL_TYPE}_${SAMPLE_NAME}" \
         "${SCRIPT_DIR}/run_scenic_plus.sh"
+}
+
+run_ips() {
+    local CELL_TYPE="iPS"
+    local SAMPLE_NAMES=(
+        "filtered_multiomics_common"
+    )
+    local SPECIES="human"
+
+    # Submit each SAMPLE_NAME as a separate job
+    for SAMPLE_NAME in "${SAMPLE_NAMES[@]}"; do
+        # Check how many jobs are currently queued/running
+        while [ "$(squeue -u $USER | grep SCENIC+ | wc -l)" -ge "$MAX_JOBS_IN_QUEUE" ]; do
+            echo "[INFO] Maximum jobs ($MAX_JOBS_IN_QUEUE) in queue. Waiting 5 minutes to check again..."
+            sleep 300
+        done
+
+        local INPUT_DIR="/gpfs/Labs/Uzun/DATA/PROJECTS/2024.GRN_BENCHMARKING.MOELLER/LINGER/IPS_CELL_DATA"
+
+        local RNA_FILE_NAME="${SAMPLE_NAME}_RNA_iPS_cell_L2.csv"
+        local ATAC_FILE_NAME="${SAMPLE_NAME}_ATAC_iPS_cell_L2.csv"
+
+        # Submit the job for each sample
+        submit_run_scenic_plus_job \
+            "$SAMPLE_NAME" \
+            "$CELL_TYPE" \
+            "$SPECIES" \
+            "$INPUT_DIR" \
+            "$RNA_FILE_NAME" \
+            "$ATAC_FILE_NAME"
+    done
 }
 
 run_macrophage() {
@@ -283,4 +314,5 @@ run_K562(){
 
 # run_K562
 # run_macrophage
-run_mESC
+run_ips
+# run_mESC

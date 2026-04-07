@@ -2,8 +2,8 @@
 #SBATCH --job-name="SCENIC+_${CELL_TYPE}_${SAMPLE_NAME}"
 #SBATCH -p compute
 #SBATCH --nodes=1
-#SBATCH -c 5
-#SBATCH --mem=64G
+#SBATCH -c 32
+#SBATCH --mem=128G
 LOG_DIR="${SCRIPT_DIR}/LOGS/${CELL_TYPE}_logs/${SAMPLE_NAME}_logs/"
 
 # DECIDE WHICH STEPS TO RUN
@@ -11,8 +11,8 @@ STEP_01_RNA_PREPROCESSING=false
 STEP_02_ATAC_PREPROCESSING=false
 STEP_03_GET_TSS_DATA=false
 STEP_04_CREATE_FASTA=false
-USE_PRECOMPUTED_CISTARGET_DB=false
-STEP_06_RUN_SNAKEMAKE_PIPELINE=false
+USE_PRECOMPUTED_CISTARGET_DB=true
+STEP_06_RUN_SNAKEMAKE_PIPELINE=true
 STEP_07_FORMAT_INFERRED_GRN=true
 
 CONDA_ENV_NAME="test_scenicplus"
@@ -109,7 +109,7 @@ determine_num_cpus() {
                 [16-31]) IGNORED_CPUS=2 ;; # Reserve 2 CPUs for <=31 cores
                 *) IGNORED_CPUS=4 ;;       # Reserve 4 CPUs for >=32 cores
             esac
-            NUM_CPU=$((TOTAL_CPUS - IGNORED_CPUS))
+            TEST_SCENIC_PLUS/run_multiple_scenic_plus_jobs.sh=$((TOTAL_CPUS - IGNORED_CPUS))
             echo "    - Running locally. Detected $TOTAL_CPUS CPUs, reserving $IGNORED_CPUS for system tasks. Using $NUM_CPU CPUs."
         else
             NUM_CPU=1  # Fallback
@@ -436,7 +436,8 @@ check_organism_genome_files(){
         if [ ! -f "${ORGANISM_DIR}/hg38.fa" ]; then
             echo "    - hg38.fa does not exist, downloading..."
             ORGANISM_FASTA_LINK="https://hgdownload.soe.ucsc.edu/goldenPath/hg38/bigZips/hg38.fa.gz"
-            curl -L -o "${ORGANISM_DIR}/hg38.fa.gz" "${ORGANISM_FASTA_LINK}" | gunzip "${ORGANISM_DIR}/hg38.fa.gz"
+            curl -L -o "${ORGANISM_DIR}/hg38.fa.gz" "${ORGANISM_FASTA_LINK}"
+            gunzip "${ORGANISM_DIR}/hg38.fa.gz"
             echo "        Done!"
         fi
     fi
