@@ -1,0 +1,3 @@
+[submodule "src/scenicplus"]
+	path = src/scenicplus
+	url = https://github.com/emoeller80281/scenicplus_src.git

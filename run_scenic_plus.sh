@@ -213,30 +213,21 @@ install_scenic_plus() {
 install_pycistopic() {
     echo ""
     echo "[INFO] Checking that pycisTopic is installed"
-    local repo_dir="${SCRIPT_DIR}/pycisTopic"
+    local repo_dir="${PYCISTOPIC_PROJECT_DIR}"
     local logf="${LOG_DIR}/install_pycistopic.log"
 
     if [[ ! -d "$repo_dir" ]]; then
-        echo "    - pycisTopic directory not found, installing..."
-        # make sure log directory exists
-        mkdir -p "$(dirname "$logf")"
-
-        # run both clone and install, capturing all output
-        {
-            echo "---- Cloning pycisTopic ----"
-            git clone https://github.com/aertslab/pycisTopic.git "$repo_dir"
-            echo "---- Installing pycisTopic ----"
-            pip install -e "$repo_dir"
-        } > "$logf" 2>&1
-
-        if [[ $? -ne 0 ]]; then
-            echo "[ERROR] pycisTopic install failed, see $logf"
-            exit 1
-        else
-            echo "    - pycisTopic installed; log in $logf"
-        fi
+        echo "[ERROR] pycisTopic project directory not found: $repo_dir"
+        exit 1
     else
-        echo "    - pycisTopic directory exists"
+        echo "    - pycisTopic directory exists at $repo_dir"
+        mkdir -p "$(dirname "$logf")"
+        if pip install -e "$repo_dir" > "$logf" 2>&1; then
+            echo "    - pycisTopic installed in editable mode from project directory"
+        else
+            echo "[ERROR] pycisTopic editable install failed, see $logf"
+            exit 1
+        fi
     fi
 }
 

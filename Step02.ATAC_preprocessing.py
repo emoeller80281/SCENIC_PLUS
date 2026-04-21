@@ -4,7 +4,6 @@ import os
 import pickle
 import matplotlib.pyplot as plt
 from pycisTopic.topic_qc import compute_topic_metrics, plot_topic_qc
-from pycisTopic.utils import fig2img
 from pycisTopic.cistopic_class import create_cistopic_object
 from pycisTopic.lda_models import run_cgs_models_mallet
 from pycisTopic.lda_models import evaluate_models
@@ -19,6 +18,9 @@ from pycisTopic.diff_features import (
 import logging
 
 import argparse
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(message)s')
 
 # Define command-line arguments
 parser = argparse.ArgumentParser(description="Process scRNA-seq and scATAC-seq data for pseudo-bulk analysis.")
@@ -50,9 +52,6 @@ chromsizes.insert(1, "Start", 0)
 
 chromsizes.to_csv(f'{output_dir}/chromsizes.tsv', index=False, sep='\t')
 logging.info(chromsizes.head())
-
-# Configure logging
-logging.basicConfig(level=logging.INFO, format='%(message)s')
 
 # Path to your peaks x barcodes CSV file
 atac_csv_path = f"{input_dir}/{atac_file_name}"
@@ -223,19 +222,6 @@ fig_dict['CoherenceVSCells_in_bin']=plot_topic_qc(topic_qc_metrics, var_x='Coher
 fig_dict['CoherenceVSRegions_in_bin']=plot_topic_qc(topic_qc_metrics, var_x='Coherence', var_y='Regions_in_binarized_topic', var_color='Gini_index', plot=False, return_fig=True)
 fig_dict['CoherenceVSMarginal_dist']=plot_topic_qc(topic_qc_metrics, var_x='Coherence', var_y='Marginal_topic_dist', var_color='Gini_index', plot=False, return_fig=True)
 fig_dict['CoherenceVSGini_index']=plot_topic_qc(topic_qc_metrics, var_x='Coherence', var_y='Gini_index', var_color='Gini_index', plot=False, return_fig=True)
-
-# Plot topic stats in one figure
-fig=plt.figure(figsize=(40, 43))
-i = 1
-for fig_ in fig_dict.keys():
-    plt.subplot(2, 3, i)
-    img = fig2img(fig_dict[fig_]) #To convert figures to png to plot together, see .utils.py. This converts the figure to png.
-    plt.imshow(img)
-    plt.axis('off')
-    i += 1
-plt.subplots_adjust(wspace=0, hspace=-0.70)
-plt.savefig(os.path.join(output_dir, 'Figure_7_topic_qc.png'))
-plt.close()
 
 logging.info(f'\tImputing accessibility of the cistopic object')
 imputed_acc_obj = impute_accessibility(
